@@ -1,1 +1,7 @@
-pandas- the main tool for working with tables 
+# requirements.txt - FleetSmart Analytics Dashboard
+pandas>=1.5.0
+numpy>=1.21.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+openpyxl>=3.0.10
+tk>=0.1.0

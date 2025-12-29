@@ -7,7 +7,7 @@ class DataEngine:
         self.data={}                # Empty dictionary to store all loaded tables
     
     def load_all_data(self):
-        """Load all 14 csv Files into memort"""
+        
         files_to_load=[
             'drivers', 'trucks', 'trailers', 'customers',
             'facilities', 'routes', 'loads', 'trips',
@@ -26,37 +26,3 @@ class DataEngine:
                 print(f"Error loading {file}.csv: {e}")
         return self.data
 
-    def get_merged_data(self):
-        """Create the main merged dataset for analysis"""
-         # Merge loads + trips (core relationship)
-        merged = pd.merge(
-            self.data['loads'],
-            self.data['trips'],
-            left_on='load_id',
-            right_on='load_id',
-            how='inner'
-        )
-         
-        print(f"Merged dataset shape: {merged.shape}")
-        return merged
-
-if __name__ == "__main__":
-    # Create the engine
-    engine = DataEngine(data_path="data files/")  # make sure this folder exists!
-    
-    # Step 1: Load all CSV files
-    print("Loading all data files...")
-    engine.load_all_data()
-    
-    # Step 2: Create the merged dataset
-    print("\nCreating merged dataset...")
-    df = engine.get_merged_data()
-    
-    # Now you can analyze!
-    print("\nFirst 5 rows:")
-    print(df.head())
-    
-    print("\nColumns:")
-    print(df.columns.tolist())
-    
-    print(f"\nTotal rows in final dataset: {len(df):,}")  
