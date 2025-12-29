@@ -1,6 +1,6 @@
+# data_preprocessor.py
 import pandas as pd
 import numpy as np
-from data_loader import DataEngine
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -8,83 +8,69 @@ class DataPreprocessor:
     def __init__(self, data_engine):
         self.engine = data_engine
         self.processed_data = {}
-    
+
     def run_pipeline(self):
-        # Ensure data is loaded
-        if not hasattr(self.engine, 'data') or not self.engine.data:
-            if hasattr(self.engine, 'load_all_data'):
-                self.engine.load_all_data()
-            else:
-                raise AttributeError("data_engine must have .data dict or .load_all_data() method")
-        
-        # Clean each table
+        if not self.engine.data:
+            print("Loading data first...")
+            self.engine.load_all_data()
+
+        print("\nCleaning and preprocessing all tables...\n")
         for table_name, df in self.engine.data.items():
-            if not isinstance(df, pd.DataFrame):
-                print(f"Warning: {table_name} is not a DataFrame, skipping...")
-                continue
-            cleaned_df = self.clean_table(table_name, df.copy())
-            self.processed_data[table_name] = cleaned_df
-        
-        print(f"\nSuccessfully processed {len(self.processed_data)} tables.")
+            if isinstance(df, pd.DataFrame) and not df.empty:
+                cleaned = self.clean_table(table_name, df.copy())
+                self.processed_data[table_name] = cleaned
+            else:
+                print(f"Skipping {table_name} - empty or not a DataFrame")
+
+        print(f"\nSuccessfully processed {len(self.processed_data)} tables!")
         return self.processed_data
-    
+
     def clean_table(self, table_name, df):
-        df = df.copy()
-        
+        print(f"Processing {table_name}... ({len(df)} rows)")
+
         # 1. Clean column names
         df.columns = [col.strip().lower().replace(' ', '_').replace('-', '_') for col in df.columns]
-        
-        # 2. Fix dates
+
+        # 2. Fix dates - SAFELY
         df = self._fix_dates(df)
-        
+
         # 3. Handle missing values
-        df = self._handle_missing(df, table_name)
-        
+        # Fill numeric columns with mean
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        for col in numeric_cols:
+            if df[col].isnull().any():
+                mean_val = df[col].mean()
+                df[col].fillna(mean_val, inplace=True)
+
+        # Drop rows with missing text/categorical data
+        object_cols = df.select_dtypes(include=['object']).columns
+        if len(object_cols) > 0:
+            before = len(df)
+            df.dropna(subset=object_cols, inplace=True)
+            after = len(df)
+            if before > after:
+                print(f"   → Removed {before - after} rows with missing text data")
+
         # 4. Remove duplicates
-        duplicates_removed = df.duplicated().sum()
-        df = df.drop_duplicates().reset_index(drop=True)
-        
-        if duplicates_removed > 0:
-            print(f" Removed {duplicates_removed} duplicates from {table_name}")
-        
+        duplicates = df.duplicated().sum()
+        if duplicates > 0:
+            df.drop_duplicates(inplace=True)
+            print(f"   → Removed {duplicates} duplicate rows")
+
+        df.reset_index(drop=True, inplace=True)
+        print(f"   → Final: {len(df)} rows\n")
         return df
-    
+
     def _fix_dates(self, df):
-        date_keywords = ['date', 'time', 'year', 'dt', 'timestamp']
+        # Only try to convert columns that have date-related names
+        date_keywords = ['date', 'time', 'dt', 'timestamp', 'datetime', 'year']
+
         for col in df.columns:
             if any(keyword in col.lower() for keyword in date_keywords):
-                df[col] = pd.to_datetime(df[col], errors='coerce')
+                # Only convert if it's NOT already numeric
+                if not np.issubdtype(df[col].dtype, np.number):
+                    # And only if it's string/object type
+                    if df[col].dtype == 'object':
+                        df[col] = pd.to_datetime(df[col], errors='coerce')
+                    # If it's already datetime, leave it
         return df
-    
-    def _handle_missing(self, df, table_name):
-        original_rows = len(df)  
-        
-        # 1. Handle numeric columns (fill with mean)
-        numeric_cols = [col for col in df.columns if np.issubdtype(df[col].dtype, np.number)]
-        for col in numeric_cols:
-            missing = df[col].isnull().sum()
-            if missing > 0:
-                mean_val = df[col].mean()
-                df[col] = df[col].fillna(mean_val)
-                print(f"Filled {missing} missing numeric values in {table_name}.{col} with mean ({mean_val:.2f})")
-
-        # 2. Handle categorical columns → REMOVE ROWS if missing
-        categorical_cols = [col for col in df.columns if df[col].dtype.kind in 'ObSU']
-
-        if categorical_cols:
-            missing_in_cat = df[categorical_cols].isnull().any(axis=1)
-            rows_to_drop = missing_in_cat.sum()
-            if rows_to_drop > 0:
-                print(f"Removing {rows_to_drop} rows from {table_name} due to missing categorical values")
-                df = df[~missing_in_cat].reset_index(drop=True)
-            else:
-                print(f"No missing categorical values in {table_name}")
-        else:
-            print(f"No categorical columns found in {table_name}")
-
-        final_rows = len(df)
-        print(f"Rows: {original_rows} -> {final_rows} (removed {original_rows - final_rows})\n")
-        
-        return df
-
-
