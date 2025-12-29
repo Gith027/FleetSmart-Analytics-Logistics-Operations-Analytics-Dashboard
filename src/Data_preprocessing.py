@@ -88,13 +88,3 @@ class DataPreprocessor:
         return df
 
 
-# === RUN IT ===
-if __name__ == "__main__":
-    engine = DataEngine()
-    prep = DataPreprocessor(engine)
-    result = prep.run_pipeline()
-    
-    # Optional: See final shapes
-    print("\nFinal dataset sizes after cleaning:")
-    for name, df in result.items():
-        print(f"  {name}: {df.shape}")
