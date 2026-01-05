@@ -5,7 +5,7 @@ from financial_analyzer import FinancialAnalyzer
 from Operational_Efficiency import OperationalAnalyzer
 from fuel_maintenance import FuelMaintenanceAnalyzer
 from driver_analyzer import DriverPerformanceAnalyzer
-from Visulization import PredictiveInsights
+from Visualization import PredictiveInsights
 
 def main():
     print("\n" + "="*80)
