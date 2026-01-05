@@ -14,7 +14,7 @@ def main():
     print("="*80)
 
     print("\nLoading and cleaning data...")
-    engine = DataEngine("data files/")
+    engine = DataEngine()  # Uses default "Data files" folder
     preprocessor = DataPreprocessor(engine)
     data = preprocessor.run_pipeline()
 
