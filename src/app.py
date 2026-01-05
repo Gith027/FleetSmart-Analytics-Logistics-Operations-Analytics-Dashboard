@@ -24,40 +24,26 @@ st.set_page_config(
 # Custom CSS for styling
 st.markdown("""
 <style>
-    /* Force light background for the main area to match the hardcoded styling */
-    .stApp {
-        background-color: #f8f9fa;
-        color: #000000;
-    }
-    
-    /* Style the metric cards */
+    /* Metric Cards - Dark Theme Styling */
     div[data-testid="stMetric"], .stMetric {
-        background-color: #ffffff !important;
+        background-color: #262730 !important; /* Streamlit Dark Gray */
         padding: 15px;
         border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        color: #000000 !important;
+        border: 1px solid #464b5f;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
     
-    /* Force text colors inside metrics to be black for visibility */
+    /* Ensure text visibility in dark cards (Streamlit usually handles this, but we force it just in case) */
     div[data-testid="stMetricLabel"] > label {
-        color: #444444 !important;
+        color: #fafafa !important;
     }
     div[data-testid="stMetricValue"] > div {
-        color: #000000 !important;
-    }
-    div[data-testid="stMetricDelta"] > div {
-        /* Start with inheriting, but usually delta handles its own color (green/red) */
-    }
-
-    /* Headings */
-    h1, h2, h3, h4, h5, h6 {
-        color: #2c3e50 !important;
+        color: #ffffff !important;
     }
     
-    /* General text */
-    p, li, span {
-        color: #333333;
+    /* Headings coloring for Dark Mode */
+    h1, h2, h3 {
+        color: #ffffff !important;
     }
 </style>
 """, unsafe_allow_html=True)
