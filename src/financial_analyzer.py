@@ -112,3 +112,50 @@ class FinancialAnalyzer:
         print("="*70)
 
 
+
+    def plot_monthly_trends(self):
+        """Generates Monthly Revenue vs Profit Chart"""
+        import matplotlib.pyplot as plt
+        
+        m = self.df.copy()
+        m['month'] = m['load_date'].dt.to_period('M').astype(str)
+        monthly = m.groupby('month')[['revenue', 'profit']].sum()
+        
+        fig, ax = plt.subplots(figsize=(10, 5))
+        monthly.plot(kind='bar', ax=ax, color=['#3498db', '#2ecc71'])
+        ax.set_title("Monthly Revenue vs Profit")
+        ax.set_ylabel("USD ($)")
+        ax.grid(axis='y', linestyle='--', alpha=0.7)
+        return fig
+
+    def plot_route_profitability(self):
+        """Generates Top/Bottom 5 Routes Chart"""
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        
+        route_stats = self.df.groupby('route_name').agg({'profit': 'sum', 'revenue': 'sum', 'load_id': 'count'})
+        route_stats = route_stats[route_stats['load_id'] >= 5]
+        route_stats['margin'] = (route_stats['profit'] / route_stats['revenue'] * 100)
+        
+        top_routes = route_stats.nlargest(5, 'margin')
+        
+        fig, ax = plt.subplots(figsize=(10, 5))
+        sns.barplot(y=top_routes.index, x=top_routes['margin'], palette='Greens_r', ax=ax)
+        ax.set_title("Top 5 Profitable Routes (Margin %)")
+        ax.set_xlabel("Margin %")
+        return fig
+
+    def plot_profit_distribution(self):
+        """Risk Analysis: Profit Distribution"""
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        
+        fig, ax = plt.subplots(figsize=(10, 6))
+        sns.histplot(self.df['profit'], kde=True, ax=ax, color='#2ecc71', bins=30)
+        
+        ax.axvspan(self.df['profit'].min(), 0, color='red', alpha=0.2, label='Loss Zone')
+        
+        ax.set_title("Profitability Distribution (Risk Analysis)")
+        ax.set_xlabel("Profit per Trip ($)")
+        ax.legend()
+        return fig

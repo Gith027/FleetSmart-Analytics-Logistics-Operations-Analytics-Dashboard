@@ -1,9 +1,11 @@
-# predictive_insights.py - Multi-Page Dashboard (3 pages, 4 charts each)
+# Visualization.py - Unified FleetSmart Visualization Module
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import warnings
+
+
 warnings.filterwarnings('ignore')
 
 class PredictiveInsights:
@@ -22,125 +24,149 @@ class PredictiveInsights:
         return fig, gs
 
     def show_insights(self):
-        print("\n" + "="*100)
-        print("          FLEETSMART MULTI-PAGE PREDICTIVE DASHBOARD")
-        print("="*100)
-        print("You will see 3 separate dashboard pages. Close each window to see the next.\n")
+        # Legacy method for CLI multi-page dashboard
+        # This can remain for compatibility or be refactored
+        print("Use Streamlit methods for visualization")
 
+
+class AdvancedVisualizer:
+    def __init__(self, data):
+        self.data = data
+        sns.set_style("darkgrid")  # Better for advanced charts
+
+
+
+    def profit_distribution(self):
+        """Analyzes profit margins to find loss-making trips"""
         loads = self.data.get('loads')
         trips = self.data.get('trips')
-        maint = self.data.get('maintenance_records')
-        fuel = self.data.get('fuel_purchases')
-        driver_monthly = self.data.get('driver_monthly_metrics')
-        drivers = self.data.get('drivers')
-
-        if loads is None:
-            print("Missing loads data!")
-            return
-
-        # Prepare common data
-        loads = loads.copy()
-        loads['load_date'] = pd.to_datetime(loads['load_date'], errors='coerce')
-        loads['month'] = loads['load_date'].dt.to_period('M')
-        monthly_loads = loads.groupby('month').size().sort_index()
-
-        # ==================== PAGE 1: Demand & Volume ====================
-        fig1, gs1 = self.create_page(1, "Demand & Load Volume Analysis")
-
-        ax1 = fig1.add_subplot(gs1[0, 0])
-        last_12 = monthly_loads.tail(12)
-        bars = ax1.bar(last_12.index.astype(str), last_12.values, color='#3498db')
-        ax1.set_title('Monthly Load Volume (Last 12 Months)')
-        ax1.set_ylabel('Number of Loads')
-        ax1.tick_params(axis='x', rotation=45)
-        for bar in bars:
-            h = int(bar.get_height())
-            ax1.text(bar.get_x() + bar.get_width()/2, h + 10, h, ha='center', fontweight='bold')
-
-        ax2 = fig1.add_subplot(gs1[0, 1])
-        monthly_loads.plot(linewidth=3, marker='o', ax=ax2, color='#2ecc71')
-        ax2.set_title('Load Volume Trend Over Time')
-        ax2.set_ylabel('Loads')
-        ax2.tick_params(axis='x', rotation=45)
-
-        ax3 = fig1.add_subplot(gs1[1, :])
-        growth = monthly_loads.pct_change().fillna(0) * 100
-        growth.plot(kind='bar', ax=ax3, color=np.where(growth > 0, 'green', 'red'))
-        ax3.set_title('Monthly Growth Rate (%)')
-        ax3.set_ylabel('Growth %')
-        ax3.tick_params(axis='x', rotation=45)
-
-        plt.show()  # Page 1
-
-        # ==================== PAGE 2: Maintenance & Fuel ====================
-        fig2, gs2 = self.create_page(2, "Maintenance & Fuel Efficiency")
-
-        ax1 = fig2.add_subplot(gs2[0, 0])
-        if maint is not None and not maint.empty:
-            maint_by_truck = maint.groupby('truck_id').size().sort_values(ascending=False).head(10)
-            maint_by_truck.plot(kind='barh', ax=ax1, color='#e74c3c')
-            ax1.set_title('Top 10 Trucks by Maintenance Events')
-            ax1.set_xlabel('Events')
-            ax1.invert_yaxis()
+        
+        if loads is None or trips is None: return None
+        
+        # Merge to get Revenue vs Cost
+        df = trips.merge(loads, on='load_id', how='left') # Changed to left just in case
+        
+        # Calculate Profit
+        # We need to ensure we have profit data. If not, use proxy.
+        if 'profit' not in df.columns:
+            # Reconstruct profit if missing from loader
+            # Revenue - (Fuel + Maint + Driver Pay + etc)
+            # Simplified for visual: Revenue - Fuel - Accessorials
+             # This assumes these columns exist
+            fuel = df['fuel_surcharge'] if 'fuel_surcharge' in df.columns else 0
+            acc = df['accessorial_charges'] if 'accessorial_charges' in df.columns else 0
+            rev = df['revenue'] if 'revenue' in df.columns else 0
+            df['profit_proxy'] = rev - fuel - acc
         else:
-            ax1.text(0.5, 0.5, 'No Maintenance Data', transform=ax1.transAxes, ha='center', fontsize=20)
+            df['profit_proxy'] = df['profit']
 
-        ax2 = fig2.add_subplot(gs2[0, 1])
-        if fuel is not None and not fuel.empty:
-            fuel['purchase_date'] = pd.to_datetime(fuel['purchase_date'], errors='coerce')
-            fuel['month'] = fuel['purchase_date'].dt.to_period('M')
-            monthly_fuel = fuel.groupby('month')['total_cost'].sum()
-            monthly_fuel.plot(kind='line', marker='o', ax=ax2, color='#f39c12', linewidth=3)
-            ax2.set_title('Monthly Fuel Cost Trend')
-            ax2.set_ylabel('Total Cost ($)')
-        else:
-            ax2.text(0.5, 0.5, 'No Fuel Data', transform=ax2.transAxes, ha='center', fontsize=20)
+        df['profit_proxy'] = pd.to_numeric(df['profit_proxy'], errors='coerce').fillna(0)
 
-        ax3 = fig2.add_subplot(gs2[1, :])
-        ax3.text(0.5, 0.5, 'Fuel & Maintenance Summary\n\n• Monitor high-maintenance trucks\n• Track rising fuel costs\n• Schedule preventive maintenance',
-                 transform=ax3.transAxes, ha='center', va='center', fontsize=18,
-                 bbox=dict(facecolor='lightyellow', edgecolor='orange', boxstyle='round,pad=1'))
-        ax3.axis('off')
-        ax3.set_title('Key Recommendations', fontsize=18)
+        fig, ax = plt.subplots(figsize=(10, 6))
+        sns.histplot(df['profit_proxy'], kde=True, ax=ax, color='#2ecc71', bins=30)
+        
+        # Highlight Loss Area
+        ymin, ymax = ax.get_ylim()
+        try:
+            min_val = df['profit_proxy'].min()
+            if min_val < 0:
+                ax.axvspan(min_val, 0, color='red', alpha=0.2, label='Loss-Making Zone')
+        except:
+            pass
+        
+        ax.set_title("Profitability Distribution (Risk Analysis)", fontsize=16)
+        ax.set_xlabel("Profit per Trip ($)")
+        ax.legend()
+        return fig
 
-        plt.show()  # Page 2
+    def safety_efficiency_heatmap(self):
+        """Correlates Safety with Speed/Efficiency"""
+        drivers = self.data.get('driver_monthly_metrics')
+        incidents = self.data.get('safety_incidents')
+        
+        if drivers is None or incidents is None: return None
+        
+        # Aggregate incidents by driver
+        safety_counts = incidents.groupby('driver_id').size().rename('accident_count')
+        
+        # Merge with performance metrics
+        # Group driver metrics by driver_id (mean across months)
+        driver_stats = drivers.groupby('driver_id').agg({
+            'average_mpg': 'mean',
+            'average_idle_hours': 'mean',
+            'on_time_delivery_rate': 'mean'
+        })
+        
+        df = driver_stats.join(safety_counts, how='left').fillna(0)
+        
+        # Correlation Matrix
+        corr = df[['average_mpg', 'average_idle_hours', 'on_time_delivery_rate', 'accident_count']].corr()
+        
+        fig, ax = plt.subplots(figsize=(8, 6))
+        sns.heatmap(corr, annot=True, cmap='coolwarm', fmt=".2f", ax=ax, vmin=-1, vmax=1)
+        ax.set_title("Safety vs. Efficiency Correlation", fontsize=16)
+        return fig
 
-        # ==================== PAGE 3: Driver Performance ====================
-        fig3, gs3 = self.create_page(3, "Driver Performance Insights")
+    def maintenance_risk_scatter(self):
+        """Identifies vehicles at risk based on mileage and age"""
+        trucks = self.data.get('trucks')
+        if trucks is None: return None
+        
+        # Debug Schema
+        print(f"DEBUG: Truck Columns: {trucks.columns.tolist()}")
 
-        if driver_monthly is not None and drivers is not None:
-            df_drv = driver_monthly.copy()
-            for col in ['total_revenue', 'average_mpg', 'on_time_delivery_rate', 'average_idle_hours']:
-                if col in df_drv.columns:
-                    df_drv[col] = pd.to_numeric(df_drv[col], errors='coerce')
+        df = trucks.copy()
+        # Calculate Age
+        current_year = pd.Timestamp.now().year
+        df['age'] = current_year - df['model_year']
+        
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        # Color by Year
+        scatter = ax.scatter(df['odometer_reading'], df['age'], 
+                             c=df['model_year'], cmap='plasma', s=200, alpha=0.8, edgecolors='w')
+        
+        # Add thresholds
+        ax.axvline(x=500000, color='red', linestyle='--', alpha=0.5, label='High Mileage Alert (500k)')
+        
+        # Label trucks
+        for i, row in df.iterrows():
+            if row['odometer_reading'] > 400000 or row['age'] > 10:
+                ax.text(row['odometer_reading'], row['age'], f" Truck {row['truck_id']}", fontsize=9)
+        
+        ax.set_title("⚠️ Fleet Maintenance Risk Analysis", fontsize=16)
+        ax.set_xlabel("Odometer Reading (Miles)")
+        ax.set_ylabel("Truck Age (Years)")
+        plt.colorbar(scatter, ax=ax, label='Model Year')
+        ax.legend()
+        return fig
 
-            df_drv = df_drv.merge(drivers[['driver_id', 'first_name', 'last_name']], on='driver_id', how='left')
-            df_drv['name'] = df_drv['first_name'].fillna('') + " " + df_drv['last_name'].fillna('')
-
-            ax1 = fig3.add_subplot(gs3[0, 0])
-            top_rev = df_drv.nlargest(10, 'total_revenue')
-            ax1.barh(top_rev['name'], top_rev['total_revenue'], color='#9b59b6')
-            ax1.set_title('Top 10 Drivers by Revenue')
-            ax1.invert_yaxis()
-
-            ax2 = fig3.add_subplot(gs3[0, 1])
-            sizes = df_drv['on_time_delivery_rate'].fillna(0.5) * 400 + 100
-            scatter = ax2.scatter(df_drv['average_mpg'], df_drv['total_revenue'],
-                                  s=sizes, c=df_drv['average_idle_hours'], cmap='coolwarm', alpha=0.8)
-            ax2.set_title('Revenue vs MPG\n(Bubble = On-Time Rate)')
-            ax2.set_xlabel('MPG')
-            ax2.set_ylabel('Revenue ($)')
-            plt.colorbar(scatter, ax=ax2, label='Idle Hours')
-
-            ax3 = fig3.add_subplot(gs3[1, :])
-            ax3.axis('off')
-            ax3.text(0.5, 0.5, 'DRIVER INSIGHTS\n\n• Reward top revenue drivers\n• Train low MPG / high idle drivers\n• Focus on on-time delivery leaders',
-                     transform=ax3.transAxes, ha='center', va='center', fontsize=18,
-                     bbox=dict(facecolor='lightblue', edgecolor='blue', boxstyle='round,pad=1'))
-            ax3.set_title('Action Recommendations', fontsize=18)
-
-        plt.show()  # Page 3
-
-        print("All 3 dashboard pages displayed successfully!")
-        print("Close each window to continue to the next page.")
-        print("="*100)
+    def seasonality_heatmap(self):
+        """Heatmap of Load Volume by Month vs. Day of Week"""
+        loads = self.data.get('loads')
+        if loads is None: return None
+        
+        df = loads.copy()
+        df['load_date'] = pd.to_datetime(df['load_date'], errors='coerce')
+        
+        df['Month'] = df['load_date'].dt.month_name()
+        df['Day'] = df['load_date'].dt.day_name()
+        
+        # Pivot
+        pivot = df.pivot_table(index='Day', columns='Month', values='load_id', aggfunc='count', fill_value=0)
+        
+        # Sort indices
+        days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        months_order = ['January', 'February', 'March', 'April', 'May', 'June', 
+                        'July', 'August', 'September', 'October', 'November', 'December']
+        
+        # Filter existing months/days
+        existing_days = [d for d in days_order if d in pivot.index]
+        existing_months = [m for m in months_order if m in pivot.columns]
+        
+        pivot = pivot.reindex(index=existing_days, columns=existing_months)
+        
+        fig, ax = plt.subplots(figsize=(12, 6))
+        sns.heatmap(pivot, annot=True, fmt='d', cmap='Greens', ax=ax)
+        ax.set_title("📅 Peak Seasonality: Volume Heatmap", fontsize=16)
+        return fig

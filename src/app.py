@@ -11,7 +11,7 @@ from financial_analyzer import FinancialAnalyzer
 from Operational_Efficiency import OperationalAnalyzer
 from driver_analyzer import DriverPerformanceAnalyzer
 from fuel_maintenance import FuelMaintenanceAnalyzer
-from Visualization import PredictiveInsights
+from Visualization import PredictiveInsights, AdvancedVisualizer
 
 # Page Config
 st.set_page_config(
@@ -111,11 +111,8 @@ if page == "Financial Performance":
     
     # Monthly Trends
     st.subheader("Monthly Financial Trends")
-    m = df.copy()
-    m['month'] = m['load_date'].dt.to_period('M').astype(str)
-    monthly = m.groupby('month')[['revenue', 'profit']].sum()
-    
-    st.bar_chart(monthly)
+    fig = analyzer.plot_monthly_trends()
+    if fig: st.pyplot(fig)
     
     # Route Profitability
     st.subheader("Route Profitability Analysis")
@@ -123,16 +120,13 @@ if page == "Financial Performance":
     
     with col_l:
         st.markdown("#### Top 5 Most Profitable Routes")
-        route_stats = df.groupby('route_name').agg({'profit': 'sum', 'revenue': 'sum', 'load_id': 'count'})
-        route_stats = route_stats[route_stats['load_id'] >= 5]
-        route_stats['margin'] = (route_stats['profit'] / route_stats['revenue'] * 100)
-        top_routes = route_stats.nlargest(5, 'margin')
-        st.dataframe(top_routes[['margin', 'profit']], use_container_width=True)
+        fig = analyzer.plot_route_profitability()
+        if fig: st.pyplot(fig)
         
     with col_r:
-        st.markdown("#### Least Profitable Routes")
-        bottom_routes = route_stats.nsmallest(5, 'margin')
-        st.dataframe(bottom_routes[['margin', 'profit']], use_container_width=True)
+        st.markdown("#### Profitability Distribution (Risk)")
+        fig_dist = analyzer.plot_profit_distribution()
+        if fig_dist: st.pyplot(fig_dist)
 
 # --- Page: Operational Efficiency ---
 elif page == "Operational Efficiency":
@@ -162,19 +156,13 @@ elif page == "Operational Efficiency":
         
         with c1:
             st.subheader("On-Time vs Delayed")
-            otd_counts = df['on_time'].value_counts().rename({True: 'On-Time', False: 'Delayed'})
-            fig, ax = plt.subplots()
-            ax.pie(otd_counts, labels=otd_counts.index, autopct='%1.1f%%', colors=['#2ecc71', '#e74c3c'], startangle=90)
-            ax.axis('equal')
-            st.pyplot(fig)
+            fig = analyzer.plot_ontime_distribution()
+            if fig: st.pyplot(fig)
             
         with c2:
             st.subheader("Monthly On-Time Reliability")
-            if 'dispatch_date' in df.columns:
-                m_otd = df.copy()
-                m_otd['month'] = m_otd['dispatch_date'].dt.to_period('M').astype(str)
-                trend = m_otd.groupby('month')['on_time'].mean() * 100
-                st.line_chart(trend)
+            fig = analyzer.plot_ontime_trend()
+            if fig: st.pyplot(fig)
 
 # --- Page: Driver Performance ---
 elif page == "Driver Performance":
@@ -241,21 +229,22 @@ elif page == "Driver Performance":
             use_container_width=True
         )
         
-        # Scatter Plot
-        st.subheader("Performance Matrix: Revenue vs MPG")
-        chart_data = leaderboard[['total_revenue', 'average_mpg', 'Driver Name']]
-        st.scatter_chart(
-            chart_data,
-            x='average_mpg',
-            y='total_revenue',
-            color='Driver Name',
-            size=100
-        )
+        # Enhanced Performance Matrix
+        st.subheader("🚀 Performance Matrix: Efficiency vs Revenue")
+        fig = analyzer.plot_performance_matrix()
+        if fig: st.pyplot(fig)
+        
+        # [Integrated] Safety Heatmap
+        st.markdown("---")
+        st.subheader("Safety vs. Efficiency Correlation")
+        fig_safe = analyzer.plot_safety_heatmap()
+        if fig_safe: st.pyplot(fig_safe)
 
 # --- Page: Fuel & Maintenance ---
 elif page == "Fuel & Maintenance":
     st.title("⛽ Fuel & Maintenance Analytics")
     
+    fuel_analyzer = FuelMaintenanceAnalyzer(data)
     fuel = data.get('fuel_purchases')
     maint = data.get('maintenance_records')
     
@@ -279,69 +268,48 @@ elif page == "Fuel & Maintenance":
         
         # Top 5 Expensive Trucks
         st.subheader("🚛 Highest Cost Trucks (Fuel + Maintenance)")
-        
-        fuel_cost = fuel.groupby('truck_id')['total_cost'].sum()
-        maint_cost = maint.groupby('truck_id')['total_cost'].sum()
-        
-        total_cost = pd.DataFrame({'Fuel': fuel_cost, 'Maintenance': maint_cost}).fillna(0)
-        total_cost['Total'] = total_cost['Fuel'] + total_cost['Maintenance']
-        
-        top_trucks = total_cost.nlargest(5, 'Total')
-        
-        st.bar_chart(top_trucks[['Fuel', 'Maintenance']])
+        fig = fuel_analyzer.plot_cost_distribution()
+        if fig: st.pyplot(fig)
 
 # --- Page: Predictive Insights ---
 elif page == "Predictive Insights":
-    st.title("📈 Predictive Insights & Forecasts")
+    st.title("📈 Analytical Insights & Patterns")
+    st.info("Advanced analytics based on historical data patterns and rule-based logic.")
     
     ins = PredictiveInsights(data)
+    vis = AdvancedVisualizer(data)
+    fuel_analyzer = FuelMaintenanceAnalyzer(data) # Initialize this!
     
-    # We will reuse the logic from PredictiveInsights but capture the figures
-    # Page 1 logic
-    st.header("Demand Analysis")
-    fig1, gs1 = ins.create_page(1, "Demand & Demand Volume")
+    tab1, tab2, tab3 = st.tabs(["📊 Growth & Volume", "⚠️ Maintenance Risk", "📅 Seasonal Patterns"])
     
-    loads = data.get('loads').copy()
-    loads['load_date'] = pd.to_datetime(loads['load_date'], errors='coerce')
-    loads['month'] = loads['load_date'].dt.to_period('M')
-    monthly_loads = loads.groupby('month').size().sort_index()
-    
-    # Re-impl plotting on the figure
-    ax1 = fig1.add_subplot(gs1[0, 0])
-    last_12 = monthly_loads.tail(12)
-    last_12.plot(kind='bar', ax=ax1, color='#3498db')
-    ax1.set_title('Monthly Load Volume (Last 12 Months)')
-    
-    ax2 = fig1.add_subplot(gs1[0, 1])
-    monthly_loads.plot(linewidth=3, marker='o', ax=ax2, color='#2ecc71')
-    ax2.set_title('Load Volume Trend')
-    
-    ax3 = fig1.add_subplot(gs1[1, :])
-    growth = monthly_loads.pct_change().fillna(0) * 100
-    growth.plot(kind='bar', ax=ax3, color=np.where(growth > 0, 'green', 'red'))
-    ax3.set_title('Monthly Growth Rate (%)')
-    
-    st.pyplot(fig1)
-    
-    st.markdown("---")
-    
-    st.header("Cost Efficiency")
-    fig2, gs2 = ins.create_page(2, "Maintenance & Fuel")
-    
-    # Just a sample of the second page to show capability
-    maint = data.get('maintenance_records')
-    ax1 = fig2.add_subplot(gs2[0, 0])
-    if maint is not None:
-        maint.groupby('truck_id').size().sort_values(ascending=False).head(10).plot(kind='barh', ax=ax1, color='#e74c3c')
-        ax1.set_title('Top Trucks by Maintenance Freq')
+    with tab1:
+        st.header("Historical Growth Analysis")
+        # Logic from Page 1 (simplified directly to charts)
+        loads = data.get('loads').copy()
+        loads['load_date'] = pd.to_datetime(loads['load_date'], errors='coerce')
+        loads['month'] = loads['load_date'].dt.to_period('M')
+        monthly_loads = loads.groupby('month').size().sort_index()
         
-    fuel = data.get('fuel_purchases')
-    ax2 = fig2.add_subplot(gs2[0, 1])
-    if fuel is not None:
-        fuel['purchase_date'] = pd.to_datetime(fuel['purchase_date'], errors='coerce')
-        monthly_fuel = fuel.groupby(fuel['purchase_date'].dt.to_period('M'))['total_cost'].sum()
-        monthly_fuel.plot(ax=ax2, color='#f39c12')
-        ax2.set_title('Monthly Fuel Cost')
+        col1, col2 = st.columns(2)
+        with col1:
+             st.subheader("Monthly Load Volume")
+             st.bar_chart(monthly_loads)
         
-    st.pyplot(fig2)
-
+        with col2:
+             st.subheader("Growth Rate Trend")
+             growth = monthly_loads.pct_change().fillna(0) * 100
+             st.line_chart(growth)
+             
+    with tab2:
+        st.header("Fleet Maintenance Risk Radar")
+        st.markdown("Identifies high-risk vehicles based on **Mileage** and **Age** thresholds.")
+        
+        # Use robust Fuel Analyzer method
+        fig = fuel_analyzer.plot_maintenance_risk()
+        if fig: st.pyplot(fig)
+        
+    with tab3:
+        st.header("Peak Seasonality Heatmap")
+        st.markdown("Visualizes load density by **Month** and **Day of Week**.")
+        fig = vis.seasonality_heatmap()
+        if fig: st.pyplot(fig)

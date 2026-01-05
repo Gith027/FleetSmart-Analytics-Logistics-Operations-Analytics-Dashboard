@@ -215,3 +215,30 @@ class OperationalAnalyzer:
             print("ALERT: High idle time — costing fuel and money!")
         print("ANALYSIS COMPLETE!")
         print("="*80)
+
+    def plot_ontime_distribution(self):
+        """Generates On-Time vs Delayed Pie Chart"""
+        import matplotlib.pyplot as plt
+        
+        otd_counts = self.op_data['on_time'].value_counts().rename({True: 'On-Time', False: 'Delayed'})
+        fig, ax = plt.subplots(figsize=(6, 6))
+        ax.pie(otd_counts, labels=otd_counts.index, autopct='%1.1f%%', colors=['#2ecc71', '#e74c3c'], startangle=90)
+        ax.set_title("On-Time vs Delayed")
+        return fig
+
+    def plot_ontime_trend(self):
+        """Generates Monthly On-Time Reliability Chart"""
+        import matplotlib.pyplot as plt
+        
+        df = self.op_data.copy()
+        if 'dispatch_date' not in df.columns: return None
+        
+        df['month'] = df['dispatch_date'].dt.to_period('M').astype(str)
+        trend = df.groupby('month')['on_time'].mean() * 100
+        
+        fig, ax = plt.subplots(figsize=(10, 5))
+        trend.plot(kind='line', marker='o', ax=ax, color='#2980b9', linewidth=2)
+        ax.set_title("Monthly On-Time Reliability (%)")
+        ax.set_ylabel("On-Time %")
+        ax.grid(True, linestyle='--', alpha=0.6)
+        return fig
