@@ -106,3 +106,65 @@ class DriverPerformanceAnalyzer:
 
         print("\nDRIVER PERFORMANCE ANALYSIS COMPLETE!")
         print("="*80)
+
+    def plot_performance_matrix(self):
+        """Generates Efficiency vs Revenue Scatter with Quadrants"""
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        
+        # Prepare Data - reusing display logic but getting dataframe
+        drivers = self.data.get('drivers')
+        driver_monthly = self.data.get('driver_monthly_metrics')
+        if driver_monthly is None: return None
+        
+        df = driver_monthly.copy()
+        
+        # Merge names
+        if drivers is not None:
+             df = df.merge(drivers[['driver_id', 'first_name', 'last_name']], on='driver_id', how='left')
+             df['Driver Name'] = df['first_name'].fillna('') + " " + df['last_name'].fillna('')
+        else:
+             df['Driver Name'] = df['driver_id'].astype(str)
+             
+        # Aggregate
+        leaderboard = df.groupby(['driver_id', 'Driver Name']).agg({
+             'total_revenue': 'sum',
+             'average_mpg': 'mean'
+        }).reset_index()
+        
+        fig, ax = plt.subplots(figsize=(10, 6))
+        sns.scatterplot(data=leaderboard, x='average_mpg', y='total_revenue', 
+                        size='total_revenue', sizes=(50, 300), hue='average_mpg', palette='viridis', ax=ax)
+        
+        # Quadrants
+        ax.axvline(leaderboard['average_mpg'].mean(), color='red', linestyle='--', alpha=0.5)
+        ax.axhline(leaderboard['total_revenue'].mean(), color='red', linestyle='--', alpha=0.5)
+        
+        ax.set_title("Driver Performance Matrix: Impact Analysis")
+        ax.set_xlabel("Fuel Efficiency (MPG)")
+        ax.set_ylabel("Total Revenue ($)")
+        return fig
+
+    def plot_safety_heatmap(self):
+        """Generates Safety vs Efficiency Heatmap"""
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        
+        drivers = self.data.get('driver_monthly_metrics')
+        incidents = self.data.get('safety_incidents')
+        if drivers is None or incidents is None: return None
+        
+        safety_counts = incidents.groupby('driver_id').size().rename('accident_count')
+        driver_stats = drivers.groupby('driver_id').agg({
+            'average_mpg': 'mean',
+            'average_idle_hours': 'mean',
+            'on_time_delivery_rate': 'mean'
+        })
+        
+        df = driver_stats.join(safety_counts, how='left').fillna(0)
+        corr = df[['average_mpg', 'average_idle_hours', 'on_time_delivery_rate', 'accident_count']].corr()
+        
+        fig, ax = plt.subplots(figsize=(8, 6))
+        sns.heatmap(corr, annot=True, cmap='coolwarm', fmt=".2f", ax=ax, vmin=-1, vmax=1)
+        ax.set_title("Safety vs. Efficiency Correlation")
+        return fig

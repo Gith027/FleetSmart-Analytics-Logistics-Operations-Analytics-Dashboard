@@ -75,3 +75,56 @@ class FuelMaintenanceAnalyzer:
             print("ALERT: High maintenance spending this period.")
         print("FUEL & MAINTENANCE ANALYSIS COMPLETE!")
         print("="*80)
+
+    def plot_cost_distribution(self):
+        """Generates Stacked Bar Chart for Top 5 Costly Trucks"""
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        
+        fuel = self.data.get('fuel_purchases')
+        maint = self.data.get('maintenance_records')
+        if fuel is None or maint is None: return None
+        
+        fuel_cost = fuel.groupby('truck_id')['total_cost'].sum()
+        maint_cost = maint.groupby('truck_id')['total_cost'].sum()
+        
+        total_cost = pd.DataFrame({'Fuel': fuel_cost, 'Maintenance': maint_cost}).fillna(0)
+        total_cost['Total'] = total_cost['Fuel'] + total_cost['Maintenance']
+        
+        top_trucks = total_cost.nlargest(5, 'Total')
+        
+        fig, ax = plt.subplots(figsize=(10, 6))
+        top_trucks[['Fuel', 'Maintenance']].plot(kind='bar', stacked=True, color=['#e67e22', '#e74c3c'], ax=ax)
+        ax.set_title("Top 5 Highest Cost Trucks")
+        ax.set_ylabel("Total Cost ($)")
+        ax.set_xticklabels(top_trucks.index, rotation=0)
+        return fig
+
+    def plot_maintenance_risk(self):
+        """Generates Maintenance Risk Scatter (Mileage vs Age)"""
+        import matplotlib.pyplot as plt
+        
+        trucks = self.data.get('trucks')
+        if trucks is None: return None
+        
+        df = trucks.copy()
+        current_year = pd.Timestamp.now().year
+        df['age'] = current_year - df['model_year']
+        
+        # Safe Odometer Column Retrieval
+        odo_col = next((col for col in df.columns if 'odometer' in col.lower()), None)
+        if not odo_col:
+            print("Warning: No odometer column found in trucks data.")
+            return None
+            
+        fig, ax = plt.subplots(figsize=(10, 6))
+        scatter = ax.scatter(df[odo_col], df['age'], c=df['model_year'], cmap='plasma', s=200, alpha=0.8, edgecolors='w')
+        
+        ax.axvline(x=500000, color='red', linestyle='--', alpha=0.5, label='High Mileage (500k)')
+        
+        ax.set_title("Fleet Maintenance Risk Analysis")
+        ax.set_xlabel(f"Odometer Reading ({odo_col})")
+        ax.set_ylabel("Truck Age (Years)")
+        plt.colorbar(scatter, ax=ax, label='Model Year')
+        ax.legend()
+        return fig

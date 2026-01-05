@@ -2,7 +2,7 @@ import pandas as pd
 
 
 class DataEngine:
-    def __init__(self,data_path="data files/"):
+    def __init__(self,data_path="Data files/"):
         self.data_path = data_path  # Remember where the CSV files are stored
         self.data={}                # Empty dictionary to store all loaded tables
     
