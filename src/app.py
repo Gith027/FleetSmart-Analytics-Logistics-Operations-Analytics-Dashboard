@@ -51,7 +51,7 @@ st.markdown("""
 # --- Data Loading (Cached) ---
 @st.cache_resource
 def load_data():
-    engine = DataEngine("data files/")
+    engine = DataEngine()  # Uses default "Data files" folder
     preprocessor = DataPreprocessor(engine)
     data = preprocessor.run_pipeline()
     return data
