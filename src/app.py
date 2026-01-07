@@ -963,11 +963,6 @@ def render_predictive_page(data):
                 st.subheader("Growth Rate (%)")
                 growth = monthly_loads.pct_change().fillna(0) * 100
                 st.line_chart(growth)
-            
-            # Key insights
-            avg_growth = growth.mean()
-            st.metric("Average Monthly Growth", f"{avg_growth:.1f}%",
-                     "Positive trend" if avg_growth > 0 else "Declining")
     
     with tab2:
         st.subheader("Profitability Risk Distribution")
