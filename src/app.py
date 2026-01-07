@@ -412,7 +412,8 @@ def main():
             "⛽ Fleet Costs",
             "📈 Predictive Insights",
             f"⚠️ Alerts ({alert_counts['total']})",
-            "⚙️ Settings"
+            "⚙️ Settings",
+            "ℹ️ Info"
         ]
         
         st.markdown("### Menu")
@@ -462,6 +463,10 @@ def main():
         # ------- SETTINGS PAGE -------
         elif st.session_state.page == "⚙️ Settings":
             render_settings_page()
+        
+        # ------- INFO PAGE -------
+        elif st.session_state.page == "ℹ️ Info":
+            render_info_page()
 
 
 # ============== PAGE RENDERERS ==============
@@ -470,9 +475,9 @@ def render_overview_page(data, alerts_engine):
     """Render the Overview Dashboard page"""
     st.title("🏠 Fleet Operations Overview")
     st.markdown("Real-time summary of your entire fleet operations")
-    
+    st.markdown("---")
     # Summary KPIs from all modules
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3= st.columns(3)
     
     # Financial KPIs
     fin_analyzer = FinancialAnalyzer(data)
@@ -485,21 +490,9 @@ def render_overview_page(data, alerts_engine):
     ops_kpis = ops_analyzer.get_kpis()
     col3.metric("⏱️ On-Time Rate", format_pct(ops_kpis.get('on_time_rate', 0)))
     
-    # Alert summary
-    alert_summary = alerts_engine.get_alerts_summary()
-    status_color = {'Critical': '🔴', 'Warning': '🟡', 'Good': '🟢'}.get(alert_summary['status'], '⚪')
-    col4.metric("⚠️ Fleet Status", f"{status_color} {alert_summary['status']}")
+    
     
     st.markdown("---")
-    
-    st.markdown("---")
-    
-    # Full width chart
-    st.subheader("📊 Monthly Performance Trend")
-    fig = fin_analyzer.plot_monthly_trends()
-    if fig:
-        st.pyplot(fig)
-    
     # Horizontal Alerts Ticker
     st.markdown("### 🚨 Active Alerts")
     alerts = alerts_engine.get_all_alerts()
@@ -507,6 +500,12 @@ def render_overview_page(data, alerts_engine):
         display_ticker(alerts[:10])  # Show top 10 in ticker
     else:
         st.success("✅ No active alerts - all systems normal!")
+    
+    # Full width chart
+    st.subheader("📊 Monthly Performance Trend")
+    fig = fin_analyzer.plot_monthly_trends()
+    if fig:
+        st.pyplot(fig)
 
 
 
@@ -1089,11 +1088,14 @@ def render_settings_page():
     
     if st.button("💾 Save Threshold Settings"):
         st.success("✅ Settings saved! (Note: Full implementation would persist these)")
-    
-    st.markdown("---")
+
+
+def render_info_page():
+    """Render the Info page"""
+    st.title("ℹ️ Info")
     
     st.markdown("""
-    **Enterprise Fleet Analytics Platform** v2.1.0
+    **Fleet Analytics Platform** v1.0.0
     
     A comprehensive logistics optimization and fleet management solution designed for enterprise-scale operations.
     
@@ -1107,7 +1109,6 @@ def render_settings_page():
     ### Support & Contact
     For technical support or feature requests, please contact the dedicated IT team:
     - **Email**: support@fleetsmart-analytics.com
-    - **Helpdesk**: [Internal Portal Link]
     
     &copy; 2026 FleetSmart Analytics. All rights reserved.
     """)
