@@ -5,7 +5,7 @@ from financial_analyzer import FinancialAnalyzer
 from Operational_Efficiency import OperationalAnalyzer
 from fuel_maintenance import FuelMaintenanceAnalyzer
 from driver_analyzer import DriverPerformanceAnalyzer
-from Visulization import PredictiveInsights
+from Visualization import PredictiveInsights
 
 def main():
     print("\n" + "="*80)
@@ -14,7 +14,7 @@ def main():
     print("="*80)
 
     print("\nLoading and cleaning data...")
-    engine = DataEngine("data files/")
+    engine = DataEngine()  # Uses default "Data files" folder
     preprocessor = DataPreprocessor(engine)
     data = preprocessor.run_pipeline()
 
@@ -51,7 +51,13 @@ def main():
         elif choice == '4':
             FuelMaintenanceAnalyzer(data).show_dashboard()
         elif choice == '5':
-            PredictiveInsights(data).show_insights()
+            # Note: This might need adjustment if Visualization.py changed, 
+            # but preserving original call structure for CLI.
+            try:
+                PredictiveInsights(data).show_insights()
+            except AttributeError:
+                 print("Visualizations are now optimized for Streamlit web app.")
+                 print("Please run: python -m streamlit run src/app.py")
         elif choice == '6':
             print("\nThank you for using FleetSmart Analytics!")
             print("Goodbye!")

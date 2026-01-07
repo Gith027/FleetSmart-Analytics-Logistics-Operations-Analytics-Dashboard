@@ -34,10 +34,15 @@ class DataPreprocessor:
         # 2. Fix dates - SAFELY
         df = self._fix_dates(df)
 
+
         # 3. Handle missing values
-        # Fill numeric columns with mean
+        # Fill numeric columns with mean, skipping IDs
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         for col in numeric_cols:
+            # Skip ID columns for mean filling
+            if col.endswith('_id') or col.endswith('Id') or col.lower() == 'id':
+                continue
+
             if df[col].isnull().any():
                 mean_val = df[col].mean()
                 df[col].fillna(mean_val, inplace=True)
@@ -49,16 +54,16 @@ class DataPreprocessor:
             df.dropna(subset=object_cols, inplace=True)
             after = len(df)
             if before > after:
-                print(f"   → Removed {before - after} rows with missing text data")
+                print(f"   -> Removed {before - after} rows with missing text data")
 
         # 4. Remove duplicates
         duplicates = df.duplicated().sum()
         if duplicates > 0:
             df.drop_duplicates(inplace=True)
-            print(f"   → Removed {duplicates} duplicate rows")
+            print(f"   -> Removed {duplicates} duplicate rows")
 
         df.reset_index(drop=True, inplace=True)
-        print(f"   → Final: {len(df)} rows\n")
+        print(f"   -> Final: {len(df)} rows\n")
         return df
 
     def _fix_dates(self, df):
