@@ -1,6 +1,7 @@
 # driver_performance.py
 import pandas as pd
 import numpy as np
+import difflib
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -236,15 +237,46 @@ class DriverPerformanceAnalyzer:
         matches = df[df['Driver Name'].str.lower().str.contains(query, na=False)]
         
         if matches.empty:
-            return pd.DataFrame()
+            # Fuzzy search fallback
+            all_names = df['Driver Name'].dropna().unique()
+            # Case-insensitive mapping
+            name_map = {name.lower(): name for name in all_names}
+            
+            # Find close matches to the lowercased query
+            # cutoff=0.4 allows for loose matching (handling typos and partial similarities)
+            close = difflib.get_close_matches(query, name_map.keys(), n=5, cutoff=0.4)
+            
+            if close:
+                matched_original_names = [name_map[m] for m in close]
+                matches = df[df['Driver Name'].isin(matched_original_names)]
+            else:
+                return pd.DataFrame()
         
         # Return unique drivers with aggregated stats
         result = matches.groupby(['driver_id', 'Driver Name']).agg({
             'total_revenue': 'sum',
             'average_mpg': 'mean',
             'on_time_delivery_rate': 'mean',
+            'average_idle_hours': 'mean',
             'Incidents': 'max'
         }).reset_index()
+
+        # Calculate score (same formula as leaderboard)
+        result['Score'] = (
+            (result['total_revenue'] / 1000 * 0.5) +
+            (result['average_mpg'] * 4) +
+            (result['on_time_delivery_rate'] * 100 * 0.4) -
+            (result['average_idle_hours'] * 3) -
+            (result['Incidents'] * 15)
+        ).round(1)
+        
+        # Rename columns for display
+        result = result.rename(columns={
+            'total_revenue': 'Revenue',
+            'average_mpg': 'MPG',
+            'on_time_delivery_rate': 'On-Time Rate',
+            'average_idle_hours': 'Idle Hours'
+        })
         
         return result
     
