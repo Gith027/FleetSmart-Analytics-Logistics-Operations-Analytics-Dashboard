@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from io import BytesIO
 from datetime import datetime, timedelta
+from contextlib import contextmanager
 
 # Import backend modules
 from data_loader import DataEngine
@@ -206,6 +207,23 @@ def format_pct(value):
         return "0.0%"
     return f"{value:.1f}%"
 
+def format_compact_number(value):
+    """Format large numbers with suffixes (K, M, B)"""
+    if pd.isna(value) or value is None:
+        return "0"
+    if not isinstance(value, (int, float)):
+        return str(value)
+    
+    abs_value = abs(value)
+    if abs_value >= 1_000_000_000:
+        return f"{value/1_000_000_000:.1f}B"
+    elif abs_value >= 1_000_000:
+        return f"{value/1_000_000:.1f}M"
+    elif abs_value >= 1_000:
+        return f"{value/1_000:.1f}K"
+    else:
+        return f"{value:.0f}"
+
 def export_to_csv(df, filename):
     """Generate CSV download button"""
     csv = df.to_csv(index=False)
@@ -228,6 +246,106 @@ def export_to_excel(df, filename):
         file_name=f"{filename}_{datetime.now().strftime('%Y%m%d')}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
+@contextmanager
+def loading_overlay():
+    """Context manager for a custom full-screen loading overlay"""
+    placeholder = st.empty()
+    
+    # CSS for the overlay (z-index 9999 ensures it's on top)
+    overlay_html = """
+    <style>
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(15, 23, 42, 0.85); /* Dark semi-transparent background */
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-family: sans-serif;
+        }
+        .loading-spinner {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #4F46E5; /* Primary color */
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1.5s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    <div class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <h3>Loading details...</h3>
+    </div>
+    """
+    
+    placeholder.markdown(overlay_html, unsafe_allow_html=True)
+    try:
+        yield
+    finally:
+        placeholder.empty()
+
+def display_ticker(alerts):
+    """Display horizontal scrolling ticker for alerts"""
+    if not alerts:
+        return
+    
+    alert_items = []
+    icon_map = {'critical': '🔴', 'warning': '🟡', 'info': '🟢'}
+    
+    for alert in alerts:
+        icon = icon_map.get(alert.get('type'), '⚪')
+        # Create a single line string for ticker
+        item = f"{icon} <b>{alert.get('title')}</b>: {alert.get('message')} ({alert.get('metric', '')})"
+        alert_items.append(f"<span style='display: inline-block; padding: 0 40px;'>{item}</span>")
+    
+    ticker_content = "".join(alert_items)
+    
+    # CSS for Marquee
+    ticker_html = f"""
+    <style>
+        .ticker-wrap {{
+            width: 100%;
+            overflow: hidden;
+            background-color: #1E293B;
+            border-radius: 8px;
+            padding: 10px 0;
+            white-space: nowrap;
+            box-sizing: border-box;
+            border: 1px solid #334155;
+            margin-top: 20px;
+        }}
+        .ticker {{
+            display: inline-block;
+            padding-left: 100%;
+            animation: ticker 120s linear infinite;
+        }}
+        .ticker:hover {{
+            animation-play-state: paused;
+        }}
+        @keyframes ticker {{
+            0%   {{ transform: translate(0, 0); }}
+            100% {{ transform: translate(-100%, 0); }}
+        }}
+    </style>
+    <div class="ticker-wrap">
+        <div class="ticker">
+            {ticker_content}
+        </div>
+    </div>
+    """
+    st.markdown(ticker_html, unsafe_allow_html=True)
 
 def display_alert(alert):
     """Display a single alert with styling"""
@@ -253,8 +371,11 @@ def display_kpi_row(kpis, cols_config):
 # ============== MAIN APPLICATION ==============
 def main():
     # Initialize session state
+    # Initialize session state
     if 'dark_mode' not in st.session_state:
         st.session_state.dark_mode = True
+    if 'page' not in st.session_state:
+        st.session_state.page = "🏠 Overview"
     
     # Load CSS
     load_custom_css()
@@ -282,63 +403,65 @@ def main():
         st.markdown("---")
         
         # Navigation
-        page = st.radio(
-            "📍 Navigate to:",
-            [
-                "🏠 Overview",
-                "💰 Financial Performance",
-                "⏱️ Operational Efficiency",
-                "👨‍✈️ Driver Performance",
-                "⛽ Fleet Costs",
-                "📈 Predictive Insights",
-                f"⚠️ Alerts ({alert_counts['total']})",
-                "⚙️ Settings"
-            ]
-        )
+        # Navigation
+        pages = [
+            "🏠 Overview",
+            "💰 Financial Performance",
+            "⏱️ Operational Efficiency",
+            "👨‍✈️ Driver Performance",
+            "⛽ Fleet Costs",
+            "📈 Predictive Insights",
+            f"⚠️ Alerts ({alert_counts['total']})",
+            "⚙️ Settings"
+        ]
+        
+        st.markdown("### Menu")
+        for p in pages:
+            if st.button(p, use_container_width=True, type="primary" if st.session_state.page == p else "secondary"):
+                st.session_state.page = p
+                st.rerun()
         
         st.markdown("---")
         
-        # Quick Stats
-        st.markdown("### 📊 Quick Stats")
-        st.metric("Total Alerts", alert_counts['total'], 
-                  f"{alert_counts['critical']} critical" if alert_counts['critical'] > 0 else None)
-        
-        st.markdown("---")
-        st.info("v2.0.0 | Professional Edition")
+
     
     # ============== PAGE ROUTING ==============
     
     # ------- OVERVIEW PAGE -------
-    if page == "🏠 Overview":
-        render_overview_page(data, alerts_engine)
-    
-    # ------- FINANCIAL PAGE -------
-    elif page == "💰 Financial Performance":
-        render_financial_page(data)
-    
-    # ------- OPERATIONAL PAGE -------
-    elif page == "⏱️ Operational Efficiency":
-        render_operational_page(data)
-    
-    # ------- DRIVER PAGE -------
-    elif page == "👨‍✈️ Driver Performance":
-        render_driver_page(data)
-    
-    # ------- FLEET COSTS PAGE -------
-    elif page == "⛽ Fleet Costs":
-        render_fleet_costs_page(data)
-    
-    # ------- PREDICTIVE INSIGHTS PAGE -------
-    elif page == "📈 Predictive Insights":
-        render_predictive_page(data)
-    
-    # ------- ALERTS PAGE -------
-    elif page.startswith("⚠️ Alerts"):
-        render_alerts_page(data, alerts_engine)
-    
-    # ------- SETTINGS PAGE -------
-    elif page == "⚙️ Settings":
-        render_settings_page()
+    # ------- OVERVIEW PAGE -------
+    # ------- PAGE ROUTING WITH CUSTOM SPINNER -------
+    with loading_overlay():
+        # ------- OVERVIEW PAGE -------
+        if st.session_state.page == "🏠 Overview":
+            render_overview_page(data, alerts_engine)
+        
+        # ------- FINANCIAL PAGE -------
+        elif st.session_state.page == "💰 Financial Performance":
+            render_financial_page(data)
+        
+        # ------- OPERATIONAL PAGE -------
+        elif st.session_state.page == "⏱️ Operational Efficiency":
+            render_operational_page(data)
+        
+        # ------- DRIVER PAGE -------
+        elif st.session_state.page == "👨‍✈️ Driver Performance":
+            render_driver_page(data)
+        
+        # ------- FLEET COSTS PAGE -------
+        elif st.session_state.page == "⛽ Fleet Costs":
+            render_fleet_costs_page(data)
+        
+        # ------- PREDICTIVE INSIGHTS PAGE -------
+        elif st.session_state.page == "📈 Predictive Insights":
+            render_predictive_page(data)
+        
+        # ------- ALERTS PAGE -------
+        elif st.session_state.page.startswith("⚠️ Alerts"):
+            render_alerts_page(data, alerts_engine)
+        
+        # ------- SETTINGS PAGE -------
+        elif st.session_state.page == "⚙️ Settings":
+            render_settings_page()
 
 
 # ============== PAGE RENDERERS ==============
@@ -354,7 +477,7 @@ def render_overview_page(data, alerts_engine):
     # Financial KPIs
     fin_analyzer = FinancialAnalyzer(data)
     fin_kpis = fin_analyzer.get_kpis()
-    col1.metric("💰 Total Revenue", format_currency(fin_kpis.get('total_revenue', 0)))
+    col1.metric("💰 Total Revenue", format_compact_number(fin_kpis.get('total_revenue', 0)))
     col2.metric("📈 Profit Margin", format_pct(fin_kpis.get('profit_margin', 0)))
     
     # Operational KPIs
@@ -369,41 +492,22 @@ def render_overview_page(data, alerts_engine):
     
     st.markdown("---")
     
-    # Two-column layout for charts and alerts
-    chart_col, alert_col = st.columns([2, 1])
-    
-    with chart_col:
-        st.subheader("📊 Monthly Performance Trend")
-        fig = fin_analyzer.plot_monthly_trends()
-        if fig:
-            st.pyplot(fig)
-    
-    with alert_col:
-        st.subheader("🚨 Active Alerts")
-        alerts = alerts_engine.get_all_alerts()[:5]
-        if alerts:
-            for alert in alerts:
-                display_alert(alert)
-        else:
-            st.success("✅ No active alerts - all systems normal!")
-    
     st.markdown("---")
     
-    # Quick navigation cards
-    st.subheader("🔗 Quick Access")
-    nav_cols = st.columns(5)
-    nav_items = [
-        ("💰 Financial", "View revenue and profit analysis"),
-        ("⏱️ Operations", "Check delivery performance"),
-        ("👨‍✈️ Drivers", "Review driver leaderboard"),
-        ("⛽ Fleet Costs", "Analyze fuel and maintenance"),
-        ("📈 Insights", "Predictive analytics")
-    ]
+    # Full width chart
+    st.subheader("📊 Monthly Performance Trend")
+    fig = fin_analyzer.plot_monthly_trends()
+    if fig:
+        st.pyplot(fig)
     
-    for i, (title, desc) in enumerate(nav_items):
-        with nav_cols[i]:
-            st.markdown(f"**{title}**")
-            st.caption(desc)
+    # Horizontal Alerts Ticker
+    st.markdown("### 🚨 Active Alerts")
+    alerts = alerts_engine.get_all_alerts()
+    if alerts:
+        display_ticker(alerts[:10])  # Show top 10 in ticker
+    else:
+        st.success("✅ No active alerts - all systems normal!")
+
 
 
 def render_financial_page(data):
@@ -445,8 +549,8 @@ def render_financial_page(data):
     # ===== KPI ROW =====
     kpis = analyzer.get_kpis(filtered_df)
     col1, col2, col3, col4, col5 = st.columns(5)
-    col1.metric("Total Revenue", format_currency(kpis.get('total_revenue', 0)))
-    col2.metric("Total Profit", format_currency(kpis.get('total_profit', 0)))
+    col1.metric("Total Revenue", format_compact_number(kpis.get('total_revenue', 0)))
+    col2.metric("Total Profit", format_compact_number(kpis.get('total_profit', 0)))
     col3.metric("Profit Margin", format_pct(kpis.get('profit_margin', 0)))
     col4.metric("Cost/Mile", f"${kpis.get('cost_per_mile', 0):.3f}")
     col5.metric("Total Trips", f"{kpis.get('total_trips', 0):,}")
@@ -670,7 +774,7 @@ def render_driver_page(data):
     # ===== KPI ROW =====
     kpis = analyzer.get_kpis()
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Avg Revenue", format_currency(kpis.get('avg_revenue', 0)))
+    col1.metric("Avg Revenue", format_compact_number(kpis.get('avg_revenue', 0)))
     col2.metric("Avg MPG", f"{kpis.get('avg_mpg', 0):.1f}")
     col3.metric("Avg On-Time", format_pct(kpis.get('avg_otd', 0)))
     col4.metric("Total Incidents", f"{kpis.get('total_incidents', 0)}")
@@ -712,19 +816,17 @@ def render_driver_page(data):
     st.markdown("---")
     
     # ===== CHARTS =====
-    chart_col1, chart_col2 = st.columns(2)
+    st.subheader("🎯 Performance Matrix")
+    fig = analyzer.plot_performance_matrix()
+    if fig:
+        st.pyplot(fig)
     
-    with chart_col1:
-        st.subheader("🎯 Performance Matrix")
-        fig = analyzer.plot_performance_matrix()
-        if fig:
-            st.pyplot(fig)
+    st.markdown("---")
     
-    with chart_col2:
-        st.subheader("🔗 Safety Correlation")
-        fig = analyzer.plot_safety_heatmap()
-        if fig:
-            st.pyplot(fig)
+    st.subheader("🔗 Safety Correlation")
+    fig = analyzer.plot_safety_heatmap()
+    if fig:
+        st.pyplot(fig)
     
     # Driver comparison
     st.subheader("📊 Top Drivers Comparison")
@@ -768,8 +870,8 @@ def render_fleet_costs_page(data):
     # ===== KPI ROW =====
     kpis = analyzer.get_kpis(truck_filter)
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Fuel Cost", format_currency(kpis.get('total_fuel_cost', 0)))
-    col2.metric("Total Maintenance", format_currency(kpis.get('total_maint_cost', 0)))
+    col1.metric("Total Fuel Cost", format_compact_number(kpis.get('total_fuel_cost', 0)))
+    col2.metric("Total Maintenance", format_compact_number(kpis.get('total_maint_cost', 0)))
     col3.metric("Fleet MPG", f"{kpis.get('fleet_mpg', 0):.1f}")
     col4.metric("Avg Downtime", f"{kpis.get('avg_downtime', 0):.1f} hrs")
     
@@ -966,11 +1068,7 @@ def render_settings_page():
     st.title("⚙️ Settings")
     
     # Theme toggle
-    st.subheader("🎨 Appearance")
-    dark_mode = st.toggle("Dark Mode", value=st.session_state.get('dark_mode', True))
-    if dark_mode != st.session_state.get('dark_mode', True):
-        st.session_state.dark_mode = dark_mode
-        st.rerun()
+
     
     st.markdown("---")
     
@@ -994,20 +1092,24 @@ def render_settings_page():
     
     st.markdown("---")
     
-    # About
-    st.subheader("ℹ️ About")
     st.markdown("""
-    **FleetSmart Analytics Dashboard** v2.0.0
+    **Enterprise Fleet Analytics Platform** v2.1.0
     
-    A comprehensive fleet management analytics platform providing:
-    - 📊 Financial performance tracking
-    - ⏱️ Operational efficiency monitoring
-    - 👨‍✈️ Driver performance analysis
-    - ⛽ Fuel and maintenance cost management
-    - 📈 Predictive insights and trends
-    - ⚠️ Automated alert system
+    A comprehensive logistics optimization and fleet management solution designed for enterprise-scale operations.
     
-    Built with Streamlit, Pandas, and Matplotlib.
+    ### Core Modules
+    - **Financial Intelligence**: Advanced revenue tracking and profit margin analysis.
+    - **Operational Efficiency**: Real-time delivery performance and route optimization.
+    - **Driver Performance**: Scorecarding and safety incident correlation.
+    - **Fleet Costs**: Granular fuel and maintenance cost tracking.
+    - **Predictive Analytics**: AI-driven trend forecasting and risk assessment.
+    
+    ### Support & Contact
+    For technical support or feature requests, please contact the dedicated IT team:
+    - **Email**: support@fleetsmart-analytics.com
+    - **Helpdesk**: [Internal Portal Link]
+    
+    &copy; 2026 FleetSmart Analytics. All rights reserved.
     """)
 
 
