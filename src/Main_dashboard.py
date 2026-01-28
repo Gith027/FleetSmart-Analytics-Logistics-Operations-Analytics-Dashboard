@@ -51,8 +51,7 @@ def main():
         elif choice == '4':
             FuelMaintenanceAnalyzer(data).show_dashboard()
         elif choice == '5':
-            # Note: This might need adjustment if Visualization.py changed, 
-            # but preserving original call structure for CLI.
+            
             try:
                 PredictiveInsights(data).show_insights()
             except AttributeError:

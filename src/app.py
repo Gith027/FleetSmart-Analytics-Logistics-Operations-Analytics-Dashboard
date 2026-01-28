@@ -22,7 +22,7 @@ from fuel_maintenance import FuelMaintenanceAnalyzer
 from Visualization import PredictiveInsights, AdvancedVisualizer
 from alerts_engine import AlertsEngine, AlertThresholdConfig
 
-# ============== PAGE CONFIG ==============
+# --------------------- PAGE CONFIG ------------------------
 st.set_page_config(
     page_title="FleetSmart Analytics",
     page_icon="🚚",

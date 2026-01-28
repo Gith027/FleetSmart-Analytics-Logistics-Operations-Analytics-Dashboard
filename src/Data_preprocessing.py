@@ -39,7 +39,7 @@ class DataPreprocessor:
         # Fill numeric columns with mean, skipping IDs
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         for col in numeric_cols:
-            # Skip ID columns for mean filling
+            
             if col.endswith('_id') or col.endswith('Id') or col.lower() == 'id':
                 continue
 
